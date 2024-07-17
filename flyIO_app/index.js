@@ -31,6 +31,8 @@ Note.init({
   modelName: 'note'
 })
 
+Note.sync()
+
 app.get('/api/notes', async (req, res) => {
   const notes = await Note.findAll()
   res.json(notes)
