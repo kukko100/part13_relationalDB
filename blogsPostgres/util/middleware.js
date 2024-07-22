@@ -1,4 +1,6 @@
 const logger = require('./logger')
+const jwt = require('jsonwebtoken')
+const { User } = require('../models')
 
 const requestLogger = (req, res, next) => {
   logger.info('Method:', req.method)
@@ -11,10 +13,27 @@ const requestLogger = (req, res, next) => {
 const tokenExtractor = (req, res, next) => {
   const authorization = req.get('authorization')
 
-  if (authorization && authorization.startsWith('Bearer ')) {
-    req.token = authorization.replace('Bearer ', '')
+  if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
+    req.decodedToken = jwt.verify(authorization.substring(7), SECRET)
   }
 
+  next()
+}
+
+
+const extractUserFromToken = async (req, res, next) => {
+  const token = req.headers.authorization.split(' ')[1]
+  const decodedToken = jwt.verify(token, process.env.SECRET)
+  
+  if (!decodedToken.id) {
+    return res.status(401).json({ error: 'token invalid' })
+  }
+  
+  req.user = await User.findByPk(decodedToken.id)
+  
+  if (!req.user) {
+    return res.status(404).json({ error: 'user not found' })
+  }
   next()
 }
 
@@ -44,9 +63,12 @@ const errorHandler = (error, req, res, next) => {
   } else if (error.name === 'TokenExpiredError') {
     return res.status(400).json({ error: 'token expired' })
   } else if (error.name === 'SequelizeValidationError') {
-    return res.status(400).json({ error: 'fields url and title have to be filled' })
+    const messages = error.errors.map(e => e.message)
+    return res.status(400).json({ error: messages })
   } else if (error.name === 'NotFoundError') {
-    return res.status(404).json({ error: error.message})
+    return res.status(404).json({ error: error.message })
+  } else if (error.name === 'NoPrivilegeError') {
+    return res.status(401).json({ error: error.message })
   }
   next(error)
 }
@@ -57,5 +79,6 @@ module.exports = {
   userExtractor,
   authorExtractor,
   unknownEndpoint,
-  errorHandler
+  errorHandler,
+  extractUserFromToken
 }
