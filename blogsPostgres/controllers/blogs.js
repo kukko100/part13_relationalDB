@@ -34,17 +34,12 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/', extractUserFromToken, async (req, res) => {
-  try {
     const blog = await Blog.create({ 
       ...req.body, 
       userId: req.user.id
     })
 
     return res.status(201).json(blog)
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ error: 'An error occurred while creating the blog' })
-  }
 })
 
 const blogFinder = async (req, res, next) => {

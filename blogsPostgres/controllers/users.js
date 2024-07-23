@@ -1,6 +1,15 @@
 const router = require('express').Router()
 const bcrypt = require('bcrypt')
 const { User, Blog } = require('../models')
+const { extractUserFromToken } = require('../util/middleware')
+
+const isAdmin = async (req, res, next) => {
+  const user = await User.findByPk(req.decodedToken.id)
+  if (!user.admin) {
+    return res.status(401).json({ error: 'operation not allowed' })
+  }
+  next()
+}
 
 router.get('/', async (req, res) => {
   const users = await User.findAll({
@@ -30,14 +39,10 @@ router.post('/', async (req, res) => {
 })
 
 
-router.put('/:username', async (req, res) => {
+router.put('/:username', extractUserFromToken, async (req, res) => {
     const { username } = req.params;
-    const { newUsername } = req.body;
+    const { newUsername, action, disabled } = req.body;
 
-    // Validate input
-    if (!newUsername || newUsername.length < 3) {
-      return res.status(400).json({ error: 'New username is required' });
-    }
 
     // Find the user by the current username
     const user = await User.findOne({ where: { username } });
@@ -46,16 +51,29 @@ router.put('/:username', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check if the new username is already taken
-    const existingUser = await User.findOne({ where: { username: newUsername } });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Username is already taken' });
+    if (action === 'changeUsername') {
+
+      // Validate input
+      if (!newUsername || newUsername.length < 3) {
+        return res.status(400).json({ error: 'New username is required' });
+      }
+
+      const existingUser = await User.findOne({ where: { username: newUsername } });
+      if (existingUser) {
+        return res.status(400).json({ error: 'Username is already taken' });
+      }
+      user.username = newUsername
+      await user.save()
+
+    } else if (action === 'disableEnable') {
+      if (req.user.admin) {
+        user.disabled = disabled
+        await user.save()
+      } else {
+        res.status(401).json({ error: 'disabling or enabling users needs admin priviledges'})
+      }
     }
-
-    // Update the username
-    user.username = newUsername;
-    await user.save();
-
+    
     res.json({ message: 'Username updated successfully', user });
 });
 
