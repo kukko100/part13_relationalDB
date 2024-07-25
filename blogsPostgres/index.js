@@ -1,3 +1,4 @@
+//Headers authorization and sessionId are sent through req.header in postman
 const app = require('./app')
 
 

@@ -34,10 +34,18 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/', extractUserFromToken, async (req, res) => {
-    const blog = await Blog.create({ 
+  let blog = {}
+  if (req.user.id) {
+    blog = await Blog.create({ 
       ...req.body, 
       userId: req.user.id
     })
+  } else {
+    const error = new Error('You need to be logged in to post blogs.')
+    error.name = 'NotLoggedInError'
+    throw error
+  }
+    
 
     return res.status(201).json(blog)
 })

@@ -1,6 +1,7 @@
 const logger = require('./logger')
 const jwt = require('jsonwebtoken')
 const { User } = require('../models')
+const Session = require('../models/session')
 
 const requestLogger = (req, res, next) => {
   logger.info('Method:', req.method)
@@ -14,7 +15,7 @@ const tokenExtractor = (req, res, next) => {
   const authorization = req.get('authorization')
 
   if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
-    req.decodedToken = jwt.verify(authorization.substring(7), SECRET)
+    req.decodedToken = jwt.verify(authorization.substring(7), process.env.SECRET)
   }
 
   next()
@@ -30,6 +31,7 @@ const extractUserFromToken = async (req, res, next) => {
   }
   
   req.user = await User.findByPk(decodedToken.id)
+  req.decodedToken = decodedToken;
   
   if (!req.user) {
     return res.status(404).json({ error: 'user not found' })
@@ -51,7 +53,7 @@ const unknownEndpoint = (req, res, next) => {
   res.status(404).send({ error: 'unknown endpoint' })
 }
 
-const errorHandler = (error, req, res, next) => {
+const errorHandler = async (error, req, res, next) => {
   logger.error(error.message)
 
   if (error.name === 'CastError') {
@@ -61,6 +63,11 @@ const errorHandler = (error, req, res, next) => {
   } else if (error.name === 'JsonWebTokenError') {
     return res.status(400).json({ error: error.message })
   } else if (error.name === 'TokenExpiredError') {
+    const session = await Session.findByPk(req.headers.sessionid)
+    if (session) {
+      session.active = false
+      await session.save()
+    }
     return res.status(400).json({ error: 'token expired' })
   } else if (error.name === 'SequelizeValidationError') {
     const messages = error.errors.map(e => e.message)
@@ -68,6 +75,8 @@ const errorHandler = (error, req, res, next) => {
   } else if (error.name === 'NotFoundError') {
     return res.status(404).json({ error: error.message })
   } else if (error.name === 'NoPrivilegeError') {
+    return res.status(401).json({ error: error.message })
+  } else if (error.name === 'NotLoggedInError') {
     return res.status(401).json({ error: error.message })
   }
   next(error)
