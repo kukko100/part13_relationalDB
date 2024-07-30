@@ -1,13 +1,11 @@
 const router = require('express').Router()
 const { Read } = require('../models')
 const Session = require('../models/session')
-const { sequelize } = require('../util/db')
 const { extractUserFromToken } = require('../util/middleware')
 
 router.get('/', async (req, res) => {
   const reads = await Read.findAll({
   })
-
   res.json(reads)
 })
 
@@ -40,7 +38,7 @@ router.put('/:id', extractUserFromToken, async (req, res) => {
   const session = await Session.findOne({ where: { userId: req.user.id }})
   const read = await Read.findByPk(req.params.id)
   if (read && session.active) {
-    if (req.user.id === read.userId) {
+    if (req.user.id === read.userId || req.user.admin) {
       read.read = req.body.read
       await read.save()
       res.json(read)
@@ -49,7 +47,6 @@ router.put('/:id', extractUserFromToken, async (req, res) => {
       error.name = 'NoPrivilegeError'
       throw error
     }
-    
   } else {
     const error = new Error('Reading not found')
     error.name = 'NotFoundError'

@@ -1,4 +1,3 @@
-const jwt = require('jsonwebtoken')
 const router = require('express').Router()
 const { Op } = require('sequelize')
 const logger = require('../util/logger')
@@ -9,7 +8,6 @@ const { Blog, User } = require('../models')
 
 router.get('/', async (req, res) => {
   let where = {}
-
   if (req.query.search) {
     where = {
       [Op.or]: [
@@ -18,7 +16,6 @@ router.get('/', async (req, res) => {
       ]
     }
   }
-
   const blogs = await Blog.findAll({
     attributes: { exclude: ['userId'] },
     include: {
@@ -45,8 +42,6 @@ router.post('/', extractUserFromToken, async (req, res) => {
     error.name = 'NotLoggedInError'
     throw error
   }
-    
-
     return res.status(201).json(blog)
 })
 
@@ -54,7 +49,7 @@ const blogFinder = async (req, res, next) => {
   req.blog = await Blog.findByPk(req.params.id)
   next()
 }
-  
+
 router.get('/:id', blogFinder, async (req, res) => {
   if (req.blog) {
     res.json(req.blog)
@@ -67,7 +62,7 @@ router.get('/:id', blogFinder, async (req, res) => {
   
 router.delete('/:id', blogFinder, extractUserFromToken, async (req, res) => {
   if (req.blog) {
-    if (req.blog.userId === req.user.id) {
+    if (req.blog.userId === req.user.id || req.user.admin) {
       await req.blog.destroy()
       res.status(204).end()
       logger.info(`Blog with a title: ${req.blog.title}, and id: ${req.blog.id}, has been removed from the database.`)
@@ -76,7 +71,6 @@ router.delete('/:id', blogFinder, extractUserFromToken, async (req, res) => {
       error.name = 'NoPrivilegeError'
       throw error
     }
-    
   } else {
     const error = new Error('Blog not found')
     error.name = 'NotFoundError'
